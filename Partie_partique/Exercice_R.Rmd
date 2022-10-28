@@ -55,21 +55,20 @@ plot(dag_bank)
 **2 - Élicitation des tables de probabilités conditionnelles**
 
 ```{r}
-val = c("0","1") ## valeurs possibles pour chacune des variables
-val0 = c("non Élevé","Élevé") 
+val0 = c("Faible","Moyen","Élevé") ## valeurs possibles pour chacune des variables
 val1 = c("Mauvais","Bon")
-val2 = c("non Fiable","Fiable") 
-val3 = c("non Agé","Agé") 
+val2 = c("Non Fiable","Fiable") 
+val3 = c("<25","[25:50]","[50:65]","[>65]") 
+val4 = c("Non Solvable","Solvable") 
 
-
-cp_Rev <- cptable(~Rev,values=c(66,33),levels=val0)
-cp_Age <- cptable(~Age,values=c(50,50),levels=val3)
-cp_RDR <- cptable(~RDR|Age,values=c(60,40,40,60),levels=val0)
-cp_HistP <- cptable(~HistP|RDR, values = c(45,55,55,45),levels=val1)
-cp_Actif <- cptable(~Actif|Rev,values = c(75,25,25,75),levels=val0)
-cp_RevF <- cptable(~RevF|Actif,values = c(75,25,25,75),levels=val0)
-cp_Fiab <- cptable(~Fiab|HistP+Age,values = c(95,5,90,10,10,90,5,95),levels=val2)
-cp_Solv <- cptable(~Solv|RDR+Fiab+RevF,values = c(95,5,90,10,85,15,80,20,20,80,15,85,10,90,5,95),levels=val2)
+cp_Rev <- cptable(~Rev,values=c(33,33,33),levels=val0)
+cp_Age <- cptable(~Age,values=c(25,25,25,25),levels=val3)
+cp_RDR <- cptable(~RDR|Age,values=c(70,20,10,50,20,30,20,30,50,10,20,70),levels=val0)
+cp_HistP <- cptable(~HistP|RDR, values = c(45,55,50,50,55,45),levels=val1)
+cp_Actif <- cptable(~Actif|Rev,values = c(85,10,5,33,33,33,5,10,85),levels=val0)
+cp_RevF <- cptable(~RevF|Actif,values = c(85,10,5,33,33,33,5,10,85),levels=val0)
+cp_Fiab <- cptable(~Fiab|HistP+Age,values = c(80,20,60,40,40,60,20,80,80,20,60,40,40,60,20,80),levels=val2)
+cp_Solv <- cptable(~Solv|RDR+Fiab+RevF,values = c(90,10,80,20,70,30,60,40,50,50,40,60,30,70,20,80,10,90,80,10,80,20,70,30,60,40,50,50,40,60,30,70,20,80,10,90),levels=val4)
 
 net_list = compileCPT(list(cp_Rev,cp_Age,cp_RDR,cp_HistP,cp_Actif,cp_RevF,cp_Fiab,cp_Solv))
 grain_bank = grain(net_list)
