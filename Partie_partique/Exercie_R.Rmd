@@ -18,6 +18,187 @@ library("miceadds")
 library("MASS")
 ```
 
+## EXERCICE 1
+
+Création de la structure du réseau bayésien ainsi que les probaibilités qui lui sont associées
+
+```{r}
+
+library("gRain")
+library("gRbase")
+library("Rgraphviz")
+library("ggm")
+library("bnlearn")
+
+data(marks)
+names(marks)
+
+dag_notes = empty.graph(names(marks))
+
+arcs(dag_notes) = matrix(
+  c("VECT", "MECH",
+    "ALG", "MECH",
+    "ALG", "VECT",
+    "ANL", "ALG",
+    "STAT", "ALG",
+    "STAT", "ANL"),
+  ncol = 2, byrow = TRUE, dimnames = list(c(), c("from", "to")))
+
+mat_ad = matrix(c(0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+                  0, 0, 1, 0, 0, 0, 0, 0), nrow = 5,
+                dimnames = list(names(marks), names(marks)))
+
+dag2_notes = empty.graph(names(marks))
+amat(dag2_notes) = mat_ad
+
+dag2 = drop.arc(dag_notes, from = "STAT", to = "ANL")
+
+v_st = list(arcs = vstructs(dag2, arcs = TRUE), lwd = 4, col = "black")
+graphviz.plot(dag2, highlight = v_st, layout = "fdp", main = "Interdépendances des sujets")
+
+
+name_Crit <- c("Age","Fiab","HistP","RDR","Solv","RevF","Rev","Actif")
+
+dag_bank = empty.graph(name_Crit)
+
+
+arcs(dag_bank) = matrix(
+  c("Age", "Fiab",
+    "Age", "RDR",
+    "RDR", "HistP",
+    "RDR", "Solv",
+    "HistP", "Fiab",
+    "Fiab", "Solv",
+    "Rev", "Actif",
+    "Actif", "RevF",
+    "RevF", "Solv"),
+  ncol = 2, byrow = TRUE, dimnames = list(c(), c("from", "to")))
+
+graphviz.plot(dag_bank, layout = "fdp", main = "Interdépendances des sujets")
+
+dag_bank1 = dag(~Rev, ~RDR|Age, ~HistP|RDR, 
+                ~Fiab|HistP:Age, 
+                ~Actif|Rev, ~RevF|Actif,
+                ~Solv|RDR:Fiab:RevF)
+dag_bank1
+
+plot(dag_bank1)
+
+
+val0 = c("Faible","Moyen","Élevé") ## valeurs possibles pour chacune des variables
+val1 = c("Mauvais","Bon")
+val2 = c("Non Fiable","Fiable") 
+val3 = c("<25","[25:50]","[50:65]","[>65]") 
+
+cp_Rev <- cptable(~Rev,values=c(33,33,33),levels=val0)
+cp_Age <- cptable(~Age,values=c(25,25,25,25),levels=val3)
+cp_RDR <- cptable(~RDR|Age,values=c(80,15,5,50,20,30,20,30,50,5,15,80),levels=val0)
+cp_HistP <- cptable(~HistP|RDR, values = c(5,95,60,40,95,5),levels=val1)
+cp_Actif <- cptable(~Actif|Rev,values = c(85,10,5,33,33,33,5,10,85),levels=val0)
+cp_RevF <- cptable(~RevF|Actif,values = c(85,10,5,33,33,33,5,10,85),levels=val0)
+
+#cp_Fiab <- cptable(~Fiab|HistP:Age,values = c(95,5,60,40,50,50,30,70,70,30,50,50,40,60,5,95),levels=val2)
+#cp_Solv <- cptable(~Solv|RDR:Fiab:RevF,values = c(0,1),levels=val2)
+cp_Fiab <- cptable(~Fiab|HistP+Age,values = c(95,5,60,40,50,50,30,70,70,30,50,50,40,60,5,95),levels=val2)
+cp_Solv <- cptable(~Solv|RDR+Fiab+RevF,values = c(0,1),levels=val2)
+
+
+cp_Rev
+cp_Age
+cp_RDR
+cp_HistP
+cp_Actif
+cp_RevF
+cp_Fiab
+cp_Solv
+
+#ancient : net_list = compileCPT(list(cp_Rev,cp_RDR,cp_HistP,cp_Fiab,cp_Actif,cp_RevF,cp_Solv))
+net_list = compileCPT(list(cp_Rev,cp_Age,cp_RDR,cp_HistP,cp_Fiab,cp_Actif,cp_RevF,cp_Solv))
+grain_bank = grain(net_list)
+plot(grain_bank$dag)
+
+
+
+
+
+
+```
+
+
+```{r}
+
+dag_bank2 = dag(~Rev, ~RDR|Age, ~HistP|RDR, 
+                ~Fiab|HistP:Age, 
+                ~Actif|Rev, ~RevF|Actif)
+dag_bank2
+
+plot(dag_bank2)
+
+
+val = c("0","1") ## valeurs possibles pour chacune des variables
+
+
+cp_Rev <- cptable(~Rev,values=c(1,0),levels=val)
+#ancient : cp_Age <- cptable(~Rev,values=c(1,0,1,0),levels=val)
+cp_Age <- cptable(~Age,values=c(1,0,1,0),levels=val)
+cp_RDR <- cptable(~RDR|Age,values=c(1,0,1,0),levels=val)
+cp_HistP <- cptable(~HistP|RDR, values = c(1,0,1,0),levels=val)
+cp_Actif <- cptable(~Actif|Rev,values = c(1,0,1,0),levels=val)
+cp_RevF <- cptable(~RevF|Actif,values = c(1,0,1,0),levels=val)
+
+cp_Fiab <- cptable(~Fiab|HistP:Age,values = c(1,0,1,0),levels=val)
+
+
+#ancient : net_list2 = compileCPT(list(cp_Rev,cp_RDR,cp_HistP,cp_Fiab,cp_Actif,cp_RevF))
+net_list2 = compileCPT(list(cp_Rev,cp_Age,cp_RDR,cp_HistP,cp_Fiab,cp_Actif,cp_RevF))
+grain_bank2 = grain(net_list2)
+#ancient : plot(grain_bank$dag_bank1)
+plot(grain_bank$dag)
+
+dag_gicleur = dag(~C, ~P|C, ~O|C, ~G|O:P)
+dag_gicleur
+
+plot(dag_gicleur)
+
+val = c("0","1") ## valeurs possibles pour chacune des variables
+cp_C <- cptable(~C,values=c(50,50),levels=val)
+cp_P <- cptable(~P|C,values=c(90,10,5,95),levels=val)
+cp_O <- cptable(~O|C, values = c(40,60,55,45),levels=val)
+cp_G <- cptable(~G|P+O,values = c(1,0,0,1,0,1,0,1),levels=val)
+
+net_list = compileCPT(list(cp_C,cp_P,cp_O,cp_G))
+grain_gicleur = grain(net_list)
+plot(grain_gicleur$dag)
+
+```
+```{r}
+
+#1
+querygrain(grain_bank, nodes=c("Fiab","HistP"), type="conditional")
+
+#2
+querygrain(grain_bank, nodes=c("Fiab","Age"), type="conditional")
+
+#3
+querygrain(grain_bank, nodes=c("RDR","Age"), type="conditional")
+
+#4
+querygrain(grain_bank, nodes=c("HistP","RDR"), type="conditional")
+
+#5
+querygrain(grain_bank, nodes=c("Actif","Rev"), type="conditional")
+
+#6
+querygrain(grain_bank, nodes=c("RevF","Actif"), type="conditional")
+
+#7
+querygrain(grain_bank, nodes=c("Solv","Fiab"), type="conditional")
+
+#8
+querygrain(grain_bank, nodes=c("Solv","RevF"), type="conditional")
+
+```
+
 ## EXERCICE 2
 
 ```{r}
@@ -88,6 +269,8 @@ L <- function(x1,x2,x3,x4,x5,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13){
 Nstat_1=0
 NAnl_1_Stat_1=0
 NAnl_1_Stat_0=0
+NAnl_0_Stat_1=0
+NAnl_0_Stat_0=0
 NAlg_1_Anl_1_Stat_1=0
 NAlg_1_Anl_0_Stat_1=0
 NAlg_1_Anl_1_Stat_0=0
@@ -95,6 +278,8 @@ NAlg_1_Anl_0_Stat_0=0
 NAlg_1=0
 NVect_1_NAlg_1=0
 NVect_1_NAlg_0=0
+NVect_0_NAlg_1=0
+NVect_0_NAlg_0=0
 NMech_1_Vect_1_Alg_1=0
 NMech_1_Vect_0_Alg_1=0
 NMech_1_Vect_1_Alg_0=0
@@ -108,6 +293,12 @@ for(i in 1:88){
   }
   if((notes_reussite[i,4]==1)&&(notes_reussite[i,5]==0)){
     NAnl_1_Stat_0=NAnl_1_Stat_0+1
+  }
+  if((notes_reussite[i,4]==0)&&(notes_reussite[i,5]==1)){
+    NAnl_0_Stat_1=NAnl_0_Stat_1+1
+  }
+  if((notes_reussite[i,4]==0)&&(notes_reussite[i,5]==0)){
+    NAnl_0_Stat_0=NAnl_0_Stat_0+1
   }
   if((notes_reussite[i,3]==1)&&(notes_reussite[i,4]==1)&&(notes_reussite[i,5]==1)){
     NAlg_1_Anl_1_Stat_1=NAlg_1_Anl_1_Stat_1+1
@@ -130,6 +321,12 @@ for(i in 1:88){
   if((notes_reussite[i,2]==1)&&(notes_reussite[i,3]==0)){
     NVect_1_NAlg_0=NVect_1_NAlg_0+1
   }
+  if((notes_reussite[i,2]==0)&&(notes_reussite[i,3]==1)){
+    NVect_0_NAlg_1=NVect_0_NAlg_1+1
+  }
+  if((notes_reussite[i,2]==0)&&(notes_reussite[i,3]==0)){
+    NVect_0_NAlg_0=NVect_0_NAlg_0+1
+  }
   if((notes_reussite[i,1]==1)&&(notes_reussite[i,2]==1)&&(notes_reussite[i,3]==1)){
     NMech_1_Vect_1_Alg_1=NMech_1_Vect_1_Alg_1+1
   }
@@ -149,16 +346,16 @@ for(i in 1:88){
 p1=Nstat_1/88
 p2=NAnl_1_Stat_1/Nstat_1
 p3=NAnl_1_Stat_0/(88-Nstat_1)
-p4=NAlg_1_Anl_1_Stat_1/(p2*p1*88)
-p5=NAlg_1_Anl_0_Stat_1/((1-p2)*p1*88)
-p6=NAlg_1_Anl_1_Stat_0/(p3*(1-p1)*88)
-p7=NAlg_1_Anl_0_Stat_0/(p3*(1-p1)*88)
+p4=NAlg_1_Anl_1_Stat_1/NAnl_1_Stat_1
+p5=NAlg_1_Anl_0_Stat_1/NAnl_0_Stat_1
+p6=NAlg_1_Anl_1_Stat_0/NAnl_1_Stat_0
+p7=NAlg_1_Anl_0_Stat_0/NAnl_0_Stat_0
 p8=NVect_1_NAlg_1/NAlg_1
 p9=NVect_1_NAlg_0/(88-NAlg_1)
-p10=NMech_1_Vect_1_Alg_1/(p8*(NAlg_1/88)*88)
-p11=NMech_1_Vect_0_Alg_1/((1-p8)*(NAlg_1/88)*88)
-p12=NMech_1_Vect_1_Alg_0/(p8*(1-(NAlg_1/88))*88)
-p13=NMech_1_Vect_0_Alg_0/(p8*(1-(NAlg_1/88))*88)
+p10=NMech_1_Vect_1_Alg_1/NVect_1_NAlg_1
+p11=NMech_1_Vect_0_Alg_1/NVect_0_NAlg_1
+p12=NMech_1_Vect_1_Alg_0/NVect_1_NAlg_0
+p13=NMech_1_Vect_0_Alg_0/NVect_0_NAlg_0
 
 #p1=P(Stat=1)
 print(p1)
@@ -174,17 +371,17 @@ print(p5)
 print(p6)
 #p7=P(Alg=1|Anl=0,Stat=0)
 print(p7)
-#p2=P(Vect=1|Alg=1)
+#p8=P(Vect=1|Alg=1)
 print(p8)
-#p3=P(Vect=1|Alg=0)
+#p9=P(Vect=1|Alg=0)
 print(p9)
-#p4=P(Mech=1|Vect=1,Alg=1)
+#p10=P(Mech=1|Vect=1,Alg=1)
 print(p10)
-#p5=P(Mech=1|Vect=0,Alg=1)
+#p11=P(Mech=1|Vect=0,Alg=1)
 print(p11)
-#p6=P(Mech=1|Vect=1,Alg=0)
+#p12=P(Mech=1|Vect=1,Alg=0)
 print(p12)
-#p7=P(Mech=1|Vect=0,Alg=0)
+#p13=P(Mech=1|Vect=0,Alg=0)
 print(p13)
 
 
@@ -229,37 +426,6 @@ print(solution$par)
 print(solution$value)
 
 
-
-
-#minf <- optimize(v,c(c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),maximum=FALSE))
-
-#minf = optimize(petoile2,c(c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),maximum=FALSE))
-
-
-
-
-#notes_reussite[1,]
-
-#test = petoile(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.1,0.2,0.3,0.4,0.5,0.6)
-#test
-
-#x0 <- c(0,0,0,0,0,0,0,0,0,0,0,0,0.3)
-
-#solution <- optim(x0, petoile2)
-
-
-#print(solution$counts)
-#print(solution$par)
-#print(solution$value)
-
-
-#minf <- optimize(petoile2, c(c(0,1), c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1))    )
-
-#print(minf$minimum)
-#print(minf$objective)
-
-
-
 dag_notes = empty.graph(names(marks))
 arcs(dag_notes) = matrix(
 c("VECT", "MECH",
@@ -272,5 +438,135 @@ ncol = 2, byrow = TRUE, dimnames = list(c(), c("from", "to")))
 plot(dag_notes)
 bn.fit(dag_notes, data = as.data.frame(notes_reussite))
 
+
+
+```
+comparaison : on peut voir que dans les résultats
+STAT est 0.3863636 dans bn.fit et il est 0.3863636 dans paramétrisation, 0.38589839 dans vraisemblance
+il est très similaire donc correct
+
+ANL | STAT est 0.5555556 dans bn.fit et il est 0.5555556 dans paramétrisation, 0.55986154 dans vraisemblance
+il est très similaire donc correct
+
+
+ALG | ANL + STAT est 0.4504797 dans bn.fit et il est 0.4166667 dans paramétrisation, 0.43109717 dans vraisemblance
+il est très similaire donc correct
+
+VECT | ALG est 0.2857143 dans bn.fit et il est 0.2857143 dans paramétrisation, 0.26393970 dans vraisemblance
+il est très similaire donc correct
+
+MECH | VECT + ALG est 0.1282463 dans bn.fit et il est 0.1333333 dans paramétrisation, 0.08296025 dans vraisemblance
+il est un peu similaire donc correct
+
+## EXERCICE 3
+
+
+# Question 1
+Vous trouverez la rédaction à cette question dans le whiteboard en pièce jointe. 
+
+Nous avons utilisé 7 lois normales de probabilités conditionelles respectant la structure du réseau bayésien proposé. Le produit de celles-ci représente la probabilité jointe de toutes les variables gaussiennes
+
+Il y a 24 paramètres à ajutster : 17 "alphas" et 7 "sigmas". 
+
+```{r}
+
+
+load.Rdata( filename="ApportCalorique.RData", "dat.s3" )
+xtest = head(dat.s3)
+summary(dat.s3)
+var(dat.s3)
+
+gaussienneUnivariée <- function(x,mu,sigma){
+
+  xdoubele = as.numeric(unlist(x))
+  mudouble = as.numeric(unlist(mu))
+  sigmadouble = as.numeric(unlist(sigma))
+  
+  return(dnorm(xdoubele, mudouble, sigmadouble))
+  
+}
+
+
+#Bien repasser sur quelles données on passe en entrée de dnorm
+
+N1 <- function(x,alphaPHY,sigmaPHY){
+  return(gaussienneUnivariée(x, alphaPHY, sigmaPHY))
+}
+
+N2 <- function(x,alphaIMC,sigmaIMC){
+  return(gaussienneUnivariée(x,alphaIMC, sigmaIMC))
+}
+
+N3 <- function(x,x_IMC,x_Phys,alphaC,alphaCI,alphaCP,sigmaCIP){
+  return(gaussienneUnivariée(x, alphaC+alphaCI*x_IMC+alphaCP*x_Phys, sigmaCIP))
+}
+
+N4 <- function(x,x_IMC,alphaB,alphaBI,sigmaBI){
+  return(gaussienneUnivariée(x, alphaB+alphaBI*x_IMC, sigmaBI))
+}
+
+
+N5 <- function(x,x_Phys,alphaH,alphaHP,sigmaHP){
+  return(gaussienneUnivariée(x, alphaH+alphaHP*x_Phys, sigmaHP))
+}
+
+
+N6 <- function(x,x_B,x_H,x_Phys,alphaAP,alphaAPB,alphaAPH,alphaAPP,sigmaAPBHP){
+  return(gaussienneUnivariée(x, alphaAP+alphaAPB*x_B+alphaAPH*x_H+alphaAPP*x_Phys, sigmaAPBHP))
+}
+
+N7 <- function(x,x_C,x_AP,x_Phys,alphaA,alphaAC,alphaAAP,alphaAPh,sigmaACAPP){
+  return(gaussienneUnivariée(x, alphaA+alphaAC*x_C+alphaAAP*x_AP+alphaAPh*x_Phys, sigmaACAPP))
+}
+  
+
+vraisemblancheEx3 <- function(
+  x1,x2,x3,x4,x5,x6,x7,alphaPHY,sigmaPHY,alphaIMC,sigmaIMC,
+          alphaC,alphaCI,alphaCP,sigmaCIP,alphaB,alphaBI,sigmaBI,alphaH,alphaHP,
+          sigmaHP,alphaAP,alphaAPB,alphaAPH,alphaAPP,sigmaAPBHP,
+          alphaA,alphaAC,alphaAAP,alphaAPh,sigmaACAPP){
+  
+  a = N1(x2,alphaPHY,sigmaPHY)*N2(x1,alphaIMC,sigmaIMC)*
+    N3(x4,x1,x2,alphaC,alphaCI,alphaCP,sigmaCIP)*
+    N4(x3,x1,alphaB,alphaBI,sigmaBI)*N5(x5,x2,alphaH,alphaHP,sigmaHP)*
+    N6(x6,x3,x4,x2,alphaAP,alphaAPB,alphaAPH,alphaAPP,sigmaAPBHP)*
+    N7(x7,x4,x6,x2,alphaA,alphaAC,alphaAAP,alphaAPh,sigmaACAPP)
+  return(a)
+}
+
+petoileExo3 <- function(AlphaSiglist)
+{
+  P=0
+  for(i in 1:1000 ){
+    Xi = dat.s3[i,]
+    P=P+log(1+vraisemblancheEx3(
+      Xi[1],Xi[2],Xi[3],Xi[4],Xi[5],Xi[6],Xi[7],
+      AlphaSiglist[1],AlphaSiglist[2],AlphaSiglist[3],
+      AlphaSiglist[4],AlphaSiglist[5],AlphaSiglist[6],
+      AlphaSiglist[7],AlphaSiglist[8],AlphaSiglist[9],
+      AlphaSiglist[10],AlphaSiglist[11],
+      AlphaSiglist[12],AlphaSiglist[13],AlphaSiglist[14],
+      AlphaSiglist[15],AlphaSiglist[16],
+      AlphaSiglist[17],AlphaSiglist[18],AlphaSiglist[19],
+      AlphaSiglist[20],AlphaSiglist[21],
+      AlphaSiglist[22],AlphaSiglist[23],AlphaSiglist[24]))
+  }
+  # on fait log(1+x) pour que le fichier compile même pour 
+  #des valeurs négatives de x. Cela marche comme la log 
+  #vraissemblance car log(1+x) est strictement croissant. 
+  return (-P) # on fait -P pour avoir argmax au lieux de argmin
+}
+
+x0 <- c(50.33,sqrt(75),24.94,sqrt(4),24.2,24.2,24.2,sqrt(1),1097,561,sqrt(134),
+        1,1,sqrt(0.7),2488,2488,2488,2488,sqrt(23),2488,2488,2488,2488,sqrt(0))
+# ici on a pris les moyennes et les équarts 
+#type trouvés en début de question dans "summary" et "var".
+
+
+solution <- optim(x0, petoileExo3)
+print(solution$counts)
+
+print(solution$par)
+print(solution$value)
 
 ```
