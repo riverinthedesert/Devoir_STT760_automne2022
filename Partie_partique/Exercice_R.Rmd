@@ -1,0 +1,365 @@
+---
+title: "Exercice_R"
+author: "Yunfan CAI, Dylan SI, Victor Chau, Pierre Bonneau"
+date: "2022-10-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library("gRain")
+library("gRbase")
+library("Rgraphviz")
+library("ggm")
+library("bnlearn")
+library("stats")
+library("miceadds")
+library("MASS")
+```
+
+## EXERCICE 1
+
+Claude, qui travaille dans une banque, a appris votre nouvelle expertise dans la modélisation de systèmes
+par réseaux bayésiens, et demande votre aide pour construire un modèle prédictif de la solvabilité de ses
+client(e)s. Claude vous mentionne que les variables suivantes sont accessibles pour la construction du modèle
+prédictif pour chaque client(e):
+  • Revenus (Élevé, Moyen, Faibles)
+  • Actifs (Élevé, Moyen, Faibles)
+  • Ratio dettes vs revenus (Élevé, Moyen, Faible)
+  • Historique de paiement (Bon,mauvais)
+  • Âge (moins de 25 ans, entre 25 et 50, entre 50 et 65, 65 et plus)
+Ultimement, Claude croit que la solvabilité de client(e)s dépend de:
+  • leur fiabilité (Fiable, non fiable)
+  • leur revenus futurs (Élevés, Moyens, Faibles)
+  • leur ratio dettes vs revenus (Élevé, Moyen, Faible).
+L’expérience de Claude l’amène à croire que :
+
+1. Un(e) client(e) avec un **bon historique de paiement** a tendance à être plus **fiable**;
+2. Plus un(e) client(e) est **âgé(e)**, plus il/elle a de chance d’être **fiable**;
+3. Les clients plus **âgés** ont tendance à avoir un fiable **ratio dettes vs revenus**;
+4. La probabilité d’avoir un **bon historique de paiement** augmente au fur et à mesure que le **ratio de dette vs revenus diminue**;
+5. Plus les **revenus** d’une personne sont élevés, plus cette personne a de chance d’avoir des **actifs** élevés;
+6. Plus une personne a **d’actifs**, plus cette personne a de chance d’avoir un **revenu** élevé dans le futur;
+7. Une personne **fiable** a tendance à être plus **solvable** qu’une personne non fiable;
+8. Les personnes qui ont des **revenus prometteurs** ont plus de chance d’être **solvables** que celles dont la perspective des revenus à venir est mauvaise.
+
+**1 - Représentation graphique du réseau**
+
+```{r}
+dag_bank = dag(~Rev, ~Age, ~RDR|Age, ~HistP|RDR, 
+               ~Fiab|HistP:Age, 
+               ~Actif|Rev, ~RevF|Actif,
+               ~Solv|RDR:Fiab:RevF)
+plot(dag_bank)
+```
+
+**2 - Élicitation des tables de probabilités conditionnelles**
+
+```{r}
+val = c("0","1") ## valeurs possibles pour chacune des variables
+val0 = c("non Élevé","Élevé") 
+val1 = c("Mauvais","Bon")
+val2 = c("non Fiable","Fiable") 
+val3 = c("non Agé","Agé") 
+
+
+cp_Rev <- cptable(~Rev,values=c(66,33),levels=val0)
+cp_Age <- cptable(~Age,values=c(50,50),levels=val3)
+cp_RDR <- cptable(~RDR|Age,values=c(60,40,40,60),levels=val0)
+cp_HistP <- cptable(~HistP|RDR, values = c(45,55,55,45),levels=val1)
+cp_Actif <- cptable(~Actif|Rev,values = c(75,25,25,75),levels=val0)
+cp_RevF <- cptable(~RevF|Actif,values = c(75,25,25,75),levels=val0)
+cp_Fiab <- cptable(~Fiab|HistP+Age,values = c(95,5,90,10,10,90,5,95),levels=val2)
+cp_Solv <- cptable(~Solv|RDR+Fiab+RevF,values = c(95,5,90,10,85,15,80,20,20,80,15,85,10,90,5,95),levels=val2)
+
+net_list = compileCPT(list(cp_Rev,cp_Age,cp_RDR,cp_HistP,cp_Actif,cp_RevF,cp_Fiab,cp_Solv))
+grain_bank = grain(net_list)
+```
+1) P(F = fiable | H = bon) > P(F = fiable | H = mauvais).
+```{r}
+print(querygrain(grain_bank, nodes=c("HistP","Fiab"), type="conditional"))
+```
+2) P(Age = Agé | Fiab = fiable) > P(Age = Agé | F = pas fiable).
+```{r}
+print(querygrain(grain_bank, nodes=c("Age","Fiab"), type="conditional"))
+```
+3) P(Age = Agé | RDR = élevé) > P(Age = Agé | RDR = non élevé).
+```{r}
+print(querygrain(grain_bank, nodes=c("Age","RDR"), type="conditional"))
+```
+4) P(RDR = élevé | HistP = mauvais) > P(RDR = élevé | Histp = bon).
+```{r}
+print(querygrain(grain_bank, nodes=c("RDR","HistP"), type="conditional"))
+```
+5) P(Rev = élevé | Actif = élevé) > P(RDR = élevé | Histp = non élevé).
+```{r}
+print(querygrain(grain_bank, nodes=c("Rev","Actif"), type="conditional"))
+```
+6) P(Actif = élevé | RevF = élevé) > P(Actif = élevé | RevF = non élevé).
+```{r}
+print(querygrain(grain_bank, nodes=c("Actif","RevF"), type="conditional"))
+```
+7) P(Fiab = fiable | Solv = fiable) > P(Fiab = fiable | Solv = non fiable).
+```{r}
+print(querygrain(grain_bank, nodes=c("Fiab","Solv"), type="conditional"))
+```
+8) P(RevF = élevé | Solv = fiable) > P(RevF = élevé | Solv = non fiable).
+```{r}
+print(querygrain(grain_bank, nodes=c("RevF","Solv"), type="conditional"))
+```
+
+## EXERCICE 2
+
+```{r}
+data(marks)
+
+notes_reussite = (marks >=45)*1
+#notes_reussite[notes_reussite==1] = "R" 
+#notes_reussite[notes_reussite==0] = "E"
+
+
+f1 <- function(x,p1){
+  a=0
+  if((x==0) || (x==1) )
+  {
+    a = p1^x * (1-p1)^(1-x)
+  }
+  return(a)
+}
+
+f2 <- function(x,y,p2,p3){
+  a=0
+  if( ((x==0) || (x==1)) && ((y==0) || (y==1)) )
+  {
+    a = (p2^x * (1-p2)^(1-x))^y * (p3^x * (1-p3)^(1-x))^(1-y)
+  }
+  return(a)
+}
+
+f3 <- function(x,y,z,p4,p5,p6,p7){
+  a=0
+  if(((x==0) || (x==1)) && ((y==0) || (y==1)) && ((z==0) || (z==1)) )
+  {
+    a = ((p4^x * (1-p4)^(1-x))^y * (p5^x * (1-p5)^(1-x))^(1-y))^(z) *
+      ((p6^x * (1-p6)^(1-x))^y * (p7^x * (1-p7)^(1-x))^(1-y))^(1-z)
+  }
+  return(a)
+}
+
+f4 <- function(x,y,p8,p9){
+  a=0
+  if( ((x==0) || (x==1)) && ((y==0) || (y==1)) )
+  {
+    a = (p8^x * (1-p8)^(1-x))^y * (p9^x * (1-p9)^(1-x))^(1-y)
+  }
+  return(a)
+}
+
+f5 <- function(x,y,z,p10,p11,p12,p13){
+  a=0
+  if(((x==0) || (x==1)) && ((y==0) || (y==1)) && ((z==0) || (z==1)) )
+  {
+    a = ((p10^x * (1-p10)^(1-x))^y * (p11^x * (1-p11)^(1-x))^(1-y))^(z) * 
+      ((p12^x * (1-p12)^(1-x))^y * (p13^x * (1-p13)^(1-x))^(1-y))^(1-z)
+  }
+  return(a)
+}
+
+
+L <- function(x1,x2,x3,x4,x5,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13){  
+  return(f1(x5,p1)*f2(x4,x5,p2,p3)*f3(x3,x4,x5,p4,p5,p6,p7)*
+           f4(x2,x3,p8,p9)*f5(x1,x2,x3,p10,p11,p12,p13))
+}
+# = L(x1,x2,x3,x4,x5,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13)
+
+
+
+
+Nstat_1=0
+NAnl_1_Stat_1=0
+NAnl_1_Stat_0=0
+NAlg_1_Anl_1_Stat_1=0
+NAlg_1_Anl_0_Stat_1=0
+NAlg_1_Anl_1_Stat_0=0
+NAlg_1_Anl_0_Stat_0=0
+NAlg_1=0
+NVect_1_NAlg_1=0
+NVect_1_NAlg_0=0
+NMech_1_Vect_1_Alg_1=0
+NMech_1_Vect_0_Alg_1=0
+NMech_1_Vect_1_Alg_0=0
+NMech_1_Vect_0_Alg_0=0
+for(i in 1:88){
+  if(notes_reussite[i,5]==1){
+    Nstat_1=Nstat_1+1
+  }
+  if((notes_reussite[i,4]==1)&&(notes_reussite[i,5]==1)){
+    NAnl_1_Stat_1=NAnl_1_Stat_1+1
+  }
+  if((notes_reussite[i,4]==1)&&(notes_reussite[i,5]==0)){
+    NAnl_1_Stat_0=NAnl_1_Stat_0+1
+  }
+  if((notes_reussite[i,3]==1)&&(notes_reussite[i,4]==1)&&(notes_reussite[i,5]==1)){
+    NAlg_1_Anl_1_Stat_1=NAlg_1_Anl_1_Stat_1+1
+  }
+  if((notes_reussite[i,3]==1)&&(notes_reussite[i,4]==0)&&(notes_reussite[i,5]==1)){
+    NAlg_1_Anl_0_Stat_1=NAlg_1_Anl_0_Stat_1+1
+  }
+  if((notes_reussite[i,3]==1)&&(notes_reussite[i,4]==1)&&(notes_reussite[i,5]==0)){
+    NAlg_1_Anl_1_Stat_0=NAlg_1_Anl_1_Stat_0+1
+  }
+  if((notes_reussite[i,3]==1)&&(notes_reussite[i,4]==0)&&(notes_reussite[i,5]==0)){
+    NAlg_1_Anl_0_Stat_0=NAlg_1_Anl_0_Stat_0+1
+  }
+  if(notes_reussite[i,3]==1){
+    NAlg_1=NAlg_1+1
+  }
+  if((notes_reussite[i,2]==1)&&(notes_reussite[i,3]==1)){
+    NVect_1_NAlg_1=NVect_1_NAlg_1+1
+  }
+  if((notes_reussite[i,2]==1)&&(notes_reussite[i,3]==0)){
+    NVect_1_NAlg_0=NVect_1_NAlg_0+1
+  }
+  if((notes_reussite[i,1]==1)&&(notes_reussite[i,2]==1)&&(notes_reussite[i,3]==1)){
+    NMech_1_Vect_1_Alg_1=NMech_1_Vect_1_Alg_1+1
+  }
+  if((notes_reussite[i,1]==1)&&(notes_reussite[i,2]==0)&&(notes_reussite[i,3]==1)){
+    NMech_1_Vect_0_Alg_1=NMech_1_Vect_0_Alg_1+1
+  }
+  if((notes_reussite[i,1]==1)&&(notes_reussite[i,2]==1)&&(notes_reussite[i,3]==0)){
+    NMech_1_Vect_1_Alg_0=NMech_1_Vect_1_Alg_0+1
+  }
+  if((notes_reussite[i,1]==1)&&(notes_reussite[i,2]==0)&&(notes_reussite[i,3]==0)){
+    NMech_1_Vect_0_Alg_0=NMech_1_Vect_0_Alg_0+1
+  }
+  
+  
+  
+} 
+p1=Nstat_1/88
+p2=NAnl_1_Stat_1/Nstat_1
+p3=NAnl_1_Stat_0/(88-Nstat_1)
+p4=NAlg_1_Anl_1_Stat_1/(p2*p1*88)
+p5=NAlg_1_Anl_0_Stat_1/((1-p2)*p1*88)
+p6=NAlg_1_Anl_1_Stat_0/(p3*(1-p1)*88)
+p7=NAlg_1_Anl_0_Stat_0/(p3*(1-p1)*88)
+p8=NVect_1_NAlg_1/NAlg_1
+p9=NVect_1_NAlg_0/(88-NAlg_1)
+p10=NMech_1_Vect_1_Alg_1/(p8*(NAlg_1/88)*88)
+p11=NMech_1_Vect_0_Alg_1/((1-p8)*(NAlg_1/88)*88)
+p12=NMech_1_Vect_1_Alg_0/(p8*(1-(NAlg_1/88))*88)
+p13=NMech_1_Vect_0_Alg_0/(p8*(1-(NAlg_1/88))*88)
+
+#p1=P(Stat=1)
+print(p1)
+#p2=P(Anl=1|Stat=1)
+print(p2)
+#p3=P(Anl=1|Stat=0)
+print(p3)
+#p4=P(Alg=1|Anl=1,Stat=1)
+print(p4)
+#p5=P(Alg=1|Anl=0,Stat=1)
+print(p5)
+#p6=P(Alg=1|Anl=1,Stat=0)
+print(p6)
+#p7=P(Alg=1|Anl=0,Stat=0)
+print(p7)
+#p2=P(Vect=1|Alg=1)
+print(p8)
+#p3=P(Vect=1|Alg=0)
+print(p9)
+#p4=P(Mech=1|Vect=1,Alg=1)
+print(p10)
+#p5=P(Mech=1|Vect=0,Alg=1)
+print(p11)
+#p6=P(Mech=1|Vect=1,Alg=0)
+print(p12)
+#p7=P(Mech=1|Vect=0,Alg=0)
+print(p13)
+
+
+petoile <- function(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13) {
+  P=1
+  for(i in 1:88 ){
+    Xi = notes_reussite[i,]
+    P=P*L(Xi[1],Xi[2],Xi[3],Xi[4],Xi[5],p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13)
+  }
+  return (P)
+}
+
+
+petoile2 <- function(Plist) {
+  P=1
+  for(i in 1:88 ){
+    Xi = notes_reussite[i,]
+    #P=P*L(Xi[1],Xi[2],Xi[3],Xi[4],Xi[5],Plist[1],Plist[2],Plist[3],Plist[4],Plist[5],
+          #Plist[6],Plist[7],Plist[8],Plist[9],Plist[10],Plist[11],Plist[12],Plist[13])
+    P=P+log(L(Xi[1],Xi[2],Xi[3],Xi[4],Xi[5],Plist[1],Plist[2],Plist[3],Plist[4],Plist[5],
+          Plist[6],Plist[7],Plist[8],Plist[9],Plist[10],Plist[11],Plist[12],Plist[13]))
+  }
+  return (-P) # on fait -P pour avoir argmax au lieux de argmin
+}
+
+
+
+notes_reussite[1,]
+
+#test = petoile(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.1,0.2,0.3,0.4,0.5,0.6)
+#test
+
+#x0 <- c(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13)
+x0 <- c(0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5)
+
+solution <- optim(x0, petoile2)
+print(solution$counts)
+
+
+#la solution est déjà minimum
+print(solution$par)
+print(solution$value)
+
+
+
+
+#minf <- optimize(v,c(c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),maximum=FALSE))
+
+#minf = optimize(petoile2,c(c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),maximum=FALSE))
+
+
+
+
+#notes_reussite[1,]
+
+#test = petoile(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.1,0.2,0.3,0.4,0.5,0.6)
+#test
+
+#x0 <- c(0,0,0,0,0,0,0,0,0,0,0,0,0.3)
+
+#solution <- optim(x0, petoile2)
+
+
+#print(solution$counts)
+#print(solution$par)
+#print(solution$value)
+
+
+#minf <- optimize(petoile2, c(c(0,1), c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1),c(0,1))    )
+
+#print(minf$minimum)
+#print(minf$objective)
+
+
+
+dag_notes = empty.graph(names(marks))
+arcs(dag_notes) = matrix(
+c("VECT", "MECH",
+"ALG", "MECH",
+"ALG", "VECT",
+"ANL", "ALG",
+"STAT", "ALG",
+"STAT", "ANL"),
+ncol = 2, byrow = TRUE, dimnames = list(c(), c("from", "to")))
+plot(dag_notes)
+bn.fit(dag_notes, data = as.data.frame(notes_reussite))
+
+
+```
