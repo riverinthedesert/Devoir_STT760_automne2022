@@ -1,8 +1,9 @@
 ---
 title: "Exercice_R"
 author: "Yunfan CAI, Dylan SI, Victor Chau, Pierre Bonneau"
+lien github : "https://github.com/riverinthedesert/Devoir_STT760_automne2022"
 date: "2022-10-28"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -61,6 +62,7 @@ val2 = c("Non Fiable","Fiable")
 val3 = c("<25","[25:50]","[50:65]","[>65]") 
 val4 = c("Non Solvable","Solvable") 
 
+## ici code dépase la frontière de la page .pdf, vérifiez dans le fichier de rmd.
 cp_Rev <- cptable(~Rev,values=c(33,33,33),levels=val0)
 cp_Age <- cptable(~Age,values=c(25,25,25,25),levels=val3)
 cp_RDR <- cptable(~RDR|Age,values=c(70,20,10,50,20,30,20,30,50,10,20,70),levels=val0)
@@ -70,39 +72,55 @@ cp_RevF <- cptable(~RevF|Actif,values = c(85,10,5,33,33,33,5,10,85),levels=val0)
 cp_Fiab <- cptable(~Fiab|HistP+Age,values = c(80,20,60,40,40,60,20,80,80,20,60,40,40,60,20,80),levels=val2)
 cp_Solv <- cptable(~Solv|RDR+Fiab+RevF,values = c(90,10,80,20,70,30,60,40,50,50,40,60,30,70,20,80,10,90,80,10,80,20,70,30,60,40,50,50,40,60,30,70,20,80,10,90),levels=val4)
 
+
 net_list = compileCPT(list(cp_Rev,cp_Age,cp_RDR,cp_HistP,cp_Actif,cp_RevF,cp_Fiab,cp_Solv))
 grain_bank = grain(net_list)
 ```
-1) P(F = fiable | H = bon) > P(F = fiable | H = mauvais).
+1) P(Fiab = fiable | HistP = bon) > P(Fiab = non fiable | HistP = bon).
 ```{r}
 print(querygrain(grain_bank, nodes=c("HistP","Fiab"), type="conditional"))
 ```
-2) P(Age = Agé | Fiab = fiable) > P(Age = Agé | F = pas fiable).
+2) P(Age = Agé | Fiab = fiable) > P(Age = non Agé | Fiab = fiable).
 ```{r}
+## ```supérieur à 65 représente agé donc P(Age = [>65] | Fiab = fiable) > P(Age = [50:65] | F = fiable)
+## et P(Age = [>65] | Fiab = fiable) = P(Age = [25:50] | F = fiable) (cas particulier) 
+## , P(Age = [>65] | Fiab = fiable) > P(Age = [<25]| F = fiable)
+## résumé : Plus un(e) client(e) est âgé(e), plus il/elle a de chance d’être fiable.
 print(querygrain(grain_bank, nodes=c("Age","Fiab"), type="conditional"))
 ```
-3) P(Age = Agé | RDR = élevé) > P(Age = Agé | RDR = non élevé).
+3) P(Age = Agé | RDR = élevé) > P(Age = non Agé | RDR = élevé).
 ```{r}
+## supérieur à  65 représente agé  donc P(Age = [>65] | RDR = élevé) > P(Age = [50:65] | RDR = élevé) 
+## , P(Age = [>65] | RDR = élevé) >  P(Age = [25:50] | RDR = élevé) et 
+## P(Age = [>65] | RDR = élevé) > P(Age = [<25] | RDR = élevé).
 print(querygrain(grain_bank, nodes=c("Age","RDR"), type="conditional"))
 ```
-4) P(RDR = élevé | HistP = mauvais) > P(RDR = élevé | Histp = bon).
+4) P(RDR = non élevé | HistP = bon) > P(RDR = élevé | Histp = bon).
 ```{r}
+## P(RDR = Faible  | HistP = bon) > P(RDR = élevé | Histp = bon) 
+## et P(RDR = Faible  | HistP = bon) > P(RDR = Moyen | Histp = bon).
 print(querygrain(grain_bank, nodes=c("RDR","HistP"), type="conditional"))
 ```
-5) P(Rev = élevé | Actif = élevé) > P(RDR = élevé | Histp = non élevé).
+5) P(Rev = élevé | Actif = élevé) > P(Rev = non élevé | Actif = élevé).
 ```{r}
+## P(Rev = élevé | Actif = élevé) > P(Rev = Faible | Actif = élevé)
+## et P(Rev = élevé | Actif = élevé) > P(Rev = Moyen | Actif = élevé).
 print(querygrain(grain_bank, nodes=c("Rev","Actif"), type="conditional"))
 ```
-6) P(Actif = élevé | RevF = élevé) > P(Actif = élevé | RevF = non élevé).
+6) P(Actif = élevé | RevF = élevé) > P(Actif = non élevé | RevF = élevé).
 ```{r}
+## P(Actif = élevé | RevF = élevé) > P(Actif = Moyen | RevF = élevé)
+## et P(Actif = élevé | RevF = élevé) > P(Actif = Moyen | RevF = élevé).
 print(querygrain(grain_bank, nodes=c("Actif","RevF"), type="conditional"))
 ```
-7) P(Fiab = fiable | Solv = fiable) > P(Fiab = fiable | Solv = non fiable).
+7) P(Fiab = fiable | Solv = Solvable) > P(Fiab = non fiable | Solv = Solvable).
 ```{r}
 print(querygrain(grain_bank, nodes=c("Fiab","Solv"), type="conditional"))
 ```
-8) P(RevF = élevé | Solv = fiable) > P(RevF = élevé | Solv = non fiable).
+8) P(RevF = élevé | Solv = Solvable) > P(RevF = fiable | Solv = Solvable).
 ```{r}
+## P(RevF = élevé | Solv = Solvable) > P(RevF = fiable | Solv = Solvable) 
+## et P(RevF = élevé | Solv = Solvable) > P(RevF = Moyen | Solv = Solvable).
 print(querygrain(grain_bank, nodes=c("RevF","Solv"), type="conditional"))
 ```
 
@@ -349,7 +367,8 @@ bn.fit(dag_notes, data = as.data.frame(notes_reussite))
 
 ```
 
-comparaison : on peut voir que dans les résultats
+comparaison : on peut voir que dans les résultats :
+
 STAT est 0.3863636 dans bn.fit et il est 0.3863636 dans paramétrisation, 0.38589839 dans vraisemblance
 il est très similaire donc correct
 
@@ -468,7 +487,7 @@ petoileExo3 <- function(AlphaSiglist)
 x0 <- c(50.33,sqrt(75),24.94,sqrt(4),24.2,24.2,24.2,sqrt(1),1097,561,sqrt(134),
         1,1,sqrt(0.7),2488,2488,2488,2488,sqrt(23),2488,2488,2488,2488,sqrt(0))
 # ici on a pris les moyennes et les équarts 
-#type trouvés en début de question dans "summary" et "var".
+# type trouvés en début de question dans "summary" et "var".
 
 
 solution <- optim(x0, petoileExo3)
@@ -478,3 +497,5 @@ print(solution$par)
 print(solution$value)
 
 ```
+Interprétation : 
+On peut remarquer que les résultats des optimisations n’ont pas changés par rapport aux  **x0** entrées, Ceci montre qu’utiliser les moyennes et les écarts qu’on a trouvés dans **« summary(dat.s3) »** et **« var(dat.s3) »** soit une bonne idée. Cela prouve également qu’il s’agit d’un bon modèle pour maximiser la vraisemblance. Considérons un échantillon théorique **(X_1,\ldots,X_7)** de la loi **f_x(x)**. Estimons un paramètre par la méthode du maximum de vraisemblance, afin de trouver la paramétrisation qui permet de rendre la vraisemblance maximale. Dans le cas si on observe les données comme réalisation d’un échantillon de la loi ** f_x(x)**. Résumé des interactions : B de dépend IMC, C de dépend IMC,Phys, H de dépend Phys, Ap de dépend B,H,Phys, A de dépend C,Ap,Phys, IMC et Phy dépendent de rien. c’est peut être normal de trouver des résultats similaires. Parce qu’on sait que pour mu qui maximise la vraisemblance, c’est les moyennes. Et que la matrice de covariance qui maximise, c’est la distance Mahalanobis.
